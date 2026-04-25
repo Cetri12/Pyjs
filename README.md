@@ -1,1 +1,1 @@
-A random collection of .py and .html files. Some are nonsense, some do usefull things.
+Useful Python and html/css/javascript tools
