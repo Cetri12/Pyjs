@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>PyRuby Runner</title>
+
+<style>
+body{
+  margin:0;
+  font-family:monospace;
+  background:#0b0f1a;
+  color:white;
+}
+
+.header{
+  padding:10px;
+  background:#050814;
+  border-bottom:1px solid #1e3a5f;
+}
+
+.container{
+  display:flex;
+  height:calc(100vh - 50px);
+}
+
+textarea{
+  width:50%;
+  background:#050814;
+  color:white;
+  border:none;
+  padding:12px;
+  resize:none;
+  outline:none;
+  font-family:monospace;
+  font-size:14px;
+}
+
+.right{
+  width:50%;
+  display:flex;
+  flex-direction:column;
+  border-left:1px solid #1e3a5f;
+}
+
+.output{
+  flex:1;
+  padding:10px;
+  overflow-y:auto;
+  white-space:pre-wrap;
+}
+
+.inputBar{
+  display:flex;
+  border-top:1px solid #1e3a5f;
+}
+
+.inputBar input{
+  flex:1;
+  background:#0b0f1a;
+  border:none;
+  color:white;
+  padding:10px;
+  outline:none;
+  font-family:monospace;
+}
+
+button{
+  margin-right:5px;
+  background:#12223a;
+  color:white;
+  border:1px solid #1e3a5f;
+  padding:8px 14px;
+  cursor:pointer;
+}
+
+button:hover{
+  background:#1a3354;
+}
+</style>
+</head>
+
+<body>
+
+<div class="header">
+  <button onclick="run()">Run</button>
+  <button onclick="clearOut()">Clear</button>
+</div>
+
+<div class="container">
+
+<textarea id="code">
+# Python OR Ruby both work
+
+import random
+
+puts "Hybrid Python/Ruby Demo"
+
+d = input("d6, d20, etc: ")
+
+while true
+
+  r = input("Roll? y/n: ")
+
+  if r == "y"
+
+    puts "Roll:"
+    puts random.randint(1,6)
+
+  end
+
+  if r == "n"
+    break
+  end
+
+end
+</textarea>
+
+<div class="right">
+
+<div id="output" class="output"></div>
+
+<div class="inputBar">
+<input id="inputBox" placeholder="Input here...">
+</div>
+
+</div>
+</div>
+
+<script>
+
+/* ================= ELEMENTS ================= */
+
+const output =
+  document.getElementById("output");
+
+const code =
+  document.getElementById("code");
+
+const inputBox =
+  document.getElementById("inputBox");
+
+/* ================= OUTPUT ================= */
+
+function log(s){
+  output.textContent += s + "\n";
+  output.scrollTop = output.scrollHeight;
+}
+
+function clearOut(){
+  output.textContent = "";
+}
+
+/* ================= INPUT ================= */
+
+let inputResolver = null;
+
+inputBox.onkeydown = e=>{
+
+  if(e.key === "Enter"){
+
+    let v = inputBox.value;
+
+    log("> " + v);
+
+    inputBox.value = "";
+
+    if(inputResolver){
+      inputResolver(v);
+      inputResolver = null;
+    }
+  }
+};
+
+function input(prompt){
+
+  if(prompt){
+    log(prompt);
+  }
+
+  return new Promise(res=>{
+    inputResolver = res;
+  });
+}
+
+/* ================= RUN ================= */
+
+async function run(){
+
+  clearOut();
+
+  let codeStr = code.value;
+
+  let js = `
+async function __main__(){
+
+${translate(codeStr)}
+
+}
+
+__main__();
+`;
+
+  console.log(js);
+
+  try{
+    await eval(js);
+  }
+  catch(e){
+    log("ERROR: " + e);
+  }
+}
+
+/* ================= HELPERS ================= */
+
+function normalizeCond(c){
+
+  return c
+    .replace(/\bTrue\b/g,"true")
+    .replace(/\bFalse\b/g,"false")
+    .replace(/\btrue\b/g,"true")
+    .replace(/\bfalse\b/g,"false")
+    .replace(/\band\b/g,"&&")
+    .replace(/\bor\b/g,"||")
+    .replace(/\bnot\b/g,"!");
+}
+
+/* ================= TRANSLATOR ================= */
+
+function translate(src){
+
+  let lines = src.split("\n");
+
+  let out = [];
+
+  let indentStack = [0];
+
+  let declared = new Set();
+
+  for(let raw of lines){
+
+    if(!raw.trim()) continue;
+
+    let indent =
+      raw.match(/^ */)[0].length;
+
+    let trimmed = raw.trim();
+
+    /* ================= RUBY END ================= */
+
+    if(trimmed === "end"){
+
+      out.push("}");
+
+      if(indentStack.length > 1){
+        indentStack.pop();
+      }
+
+      continue;
+    }
+
+    /* ================= CLOSE BLOCKS ================= */
+
+    while(
+      indent <
+      indentStack[indentStack.length-1]
+    ){
+      out.push("}");
+      indentStack.pop();
+    }
+
+    /* ================= COMMENTS ================= */
+
+    if(
+      trimmed.startsWith("#")
+      ||
+      trimmed.startsWith("//")
+    ){
+      continue;
+    }
+
+    /* ================= IMPORT RANDOM ================= */
+
+    if(
+      trimmed.startsWith("import random")
+      ||
+      trimmed === "require 'random'"
+      ||
+      trimmed === 'require "random"'
+    ){
+
+      out.push(`
+const random = {
+  randint:(a,b)=>
+    Math.floor(Math.random()*(b-a+1))+a
+};
+`);
+
+      continue;
+    }
+
+    /* ================= PRINT / PUTS ================= */
+
+    if(
+      trimmed.startsWith("print(")
+      ||
+      trimmed.startsWith("puts ")
+    ){
+
+      if(trimmed.startsWith("print(")){
+
+        let inside =
+          trimmed.slice(6,-1);
+
+        out.push(
+          `log(String(${inside}));`
+        );
+
+      } else {
+
+        let inside =
+          trimmed.slice(5);
+
+        out.push(
+          `log(String(${inside}));`
+        );
+      }
+
+      continue;
+    }
+
+    /* ================= WHILE ================= */
+
+    if(trimmed.startsWith("while ")){
+
+      let cond =
+        trimmed
+          .replace(/^while /,"")
+          .replace(/:$/,"");
+
+      cond = normalizeCond(cond);
+
+      out.push(`while(${cond}){`);
+
+      indentStack.push(indent+4);
+
+      continue;
+    }
+
+    /* ================= IF ================= */
+
+    if(trimmed.startsWith("if ")){
+
+      let cond =
+        trimmed
+          .replace(/^if /,"")
+          .replace(/:$/,"");
+
+      cond = normalizeCond(cond);
+
+      out.push(`if(${cond}){`);
+
+      indentStack.push(indent+4);
+
+      continue;
+    }
+
+    /* ================= ELSIF ================= */
+
+    if(trimmed.startsWith("elsif ")){
+
+      let cond =
+        trimmed.replace(/^elsif /,"");
+
+      cond = normalizeCond(cond);
+
+      out.push(`} else if(${cond}){`);
+
+      continue;
+    }
+
+    /* ================= ELIF ================= */
+
+    if(trimmed.startsWith("elif ")){
+
+      let cond =
+        trimmed
+          .replace(/^elif /,"")
+          .replace(/:$/,"");
+
+      cond = normalizeCond(cond);
+
+      out.push(`} else if(${cond}){`);
+
+      continue;
+    }
+
+    /* ================= ELSE ================= */
+
+    if(
+      trimmed === "else:"
+      ||
+      trimmed === "else"
+    ){
+
+      out.push("} else {");
+
+      continue;
+    }
+
+    /* ================= BREAK ================= */
+
+    if(trimmed === "break"){
+
+      out.push("break;");
+
+      continue;
+    }
+
+    /* ================= INPUT ================= */
+
+    if(
+      trimmed.includes("input(")
+      ||
+      trimmed.includes("gets")
+    ){
+
+      if(trimmed.includes("=")){
+
+        let [l,r] =
+          trimmed.split("=");
+
+        let varName =
+          l.trim();
+
+        let keyword =
+          declared.has(varName)
+          ? ""
+          : "let ";
+
+        declared.add(varName);
+
+        if(r.includes("input(")){
+
+          out.push(
+`${keyword}${varName} =
+await input${r.slice(r.indexOf("("))};`
+          );
+
+        } else {
+
+          out.push(
+`${keyword}${varName} =
+await input();`
+          );
+        }
+
+      } else {
+
+        out.push(
+`await input();`
+        );
+      }
+
+      continue;
+    }
+
+    /* ================= FUNCTION DEF ================= */
+
+    if(
+      trimmed.startsWith("def ")
+    ){
+
+      let rest =
+        trimmed.slice(4);
+
+      let name;
+      let args = "";
+
+      if(rest.includes("(")){
+
+        name =
+          rest.slice(
+            0,
+            rest.indexOf("(")
+          );
+
+        args =
+          rest.slice(
+            rest.indexOf("(")+1,
+            rest.indexOf(")")
+          );
+
+      } else {
+
+        let parts =
+          rest.split(" ");
+
+        name = parts[0];
+
+        args =
+          parts.slice(1).join(",");
+      }
+
+      out.push(
+        `function ${name}(${args}){`
+      );
+
+      indentStack.push(indent+4);
+
+      continue;
+    }
+
+    /* ================= RETURN ================= */
+
+    if(trimmed.startsWith("return ")){
+
+      out.push(
+        `return ${trimmed.slice(7)};`
+      );
+
+      continue;
+    }
+
+    /* ================= ASSIGNMENT ================= */
+
+    if(
+      trimmed.includes("=")
+      &&
+      !trimmed.includes("==")
+      &&
+      !trimmed.startsWith("if ")
+      &&
+      !trimmed.startsWith("while ")
+    ){
+
+      let idx = trimmed.indexOf("=");
+
+      let left =
+        trimmed.slice(0,idx);
+
+      let right =
+        trimmed.slice(idx+1);
+
+      let varName =
+        left.trim();
+
+      let keyword =
+        declared.has(varName)
+        ? ""
+        : "let ";
+
+      declared.add(varName);
+
+      out.push(
+`${keyword}${varName} =
+${right.trim()};`
+      );
+
+      continue;
+    }
+
+    /* ================= TRUE/FALSE ================= */
+
+    trimmed = trimmed
+      .replace(/\bTrue\b/g,"true")
+      .replace(/\bFalse\b/g,"false");
+
+    /* ================= OTHER ================= */
+
+    out.push(trimmed + ";");
+  }
+
+  /* ================= CLOSE BLOCKS ================= */
+
+  while(indentStack.length > 1){
+
+    out.push("}");
+
+    indentStack.pop();
+  }
+
+  return out.join("\n");
+}
+
+</script>
+
+</body>
+</html>
