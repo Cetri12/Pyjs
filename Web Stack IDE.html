@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Mini Dark IDE</title>
+
+<style>
+body {
+  margin: 0;
+  font-family: monospace;
+  background: #0d1117;
+  color: #e6edf3;
+  display: flex;
+  height: 100vh;
+}
+
+.sidebar {
+  width: 180px;
+  background: #161b22;
+  border-right: 1px solid #30363d;
+  padding: 10px;
+}
+
+.tab {
+  padding: 8px;
+  margin-bottom: 6px;
+  background: #21262d;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.tab:hover {
+  background: #30363d;
+}
+
+.tab.active {
+  background: #2b6cff;
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.toolbar {
+  background: #161b22;
+  padding: 8px;
+  border-bottom: 1px solid #30363d;
+  display: flex;
+  gap: 6px;
+}
+
+button {
+  background: #2b6cff;
+  border: none;
+  color: white;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #1f4fd1;
+}
+
+.editor-area {
+  display: flex;
+  flex: 1;
+}
+
+textarea {
+  flex: 1;
+  background: #0d1117;
+  color: #e6edf3;
+  border: none;
+  padding: 10px;
+  outline: none;
+  resize: none;
+  font-size: 14px;
+}
+
+.preview {
+  flex: 1;
+  border-left: 1px solid #30363d;
+  background: white;
+}
+
+.console {
+  height: 140px;
+  background: #0b0f14;
+  border-top: 1px solid #30363d;
+  overflow: auto;
+  padding: 8px;
+  font-size: 12px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="sidebar">
+  <div class="tab active" onclick="switchTab('js')">script.js</div>
+  <div class="tab" onclick="switchTab('json')">data.json</div>
+  <div class="tab" onclick="switchTab('txt')">notes.txt</div>
+  <div class="tab" onclick="switchTab('html')">preview</div>
+</div>
+
+<div class="main">
+
+  <div class="toolbar">
+    <button onclick="runJS()">Run JS</button>
+    <button onclick="parseJSON()">Check JSON</button>
+    <button onclick="downloadFile()">Download File</button>
+    <button onclick="clearConsole()">Clear</button>
+  </div>
+
+  <div class="editor-area">
+
+    <textarea id="editor"></textarea>
+
+    <iframe id="preview" class="preview"></iframe>
+
+  </div>
+
+  <div id="console" class="console"></div>
+
+</div>
+
+<script>
+const editor = document.getElementById("editor");
+const preview = document.getElementById("preview");
+const consoleBox = document.getElementById("console");
+
+let current = "js";
+
+const files = {
+  js: `log("Hello from JS IDE");`,
+  json: `{"name":"Mini IDE","version":1}`,
+  txt: `Write notes here...`,
+  html: `<h1 style="font-family:sans-serif;">Live Preview</h1>`
+};
+
+function log(msg){
+  consoleBox.textContent += msg + "\n";
+}
+
+function clearConsole(){
+  consoleBox.textContent = "";
+}
+
+// TAB SWITCHING
+function switchTab(tab){
+  files[current] = editor.value;
+  current = tab;
+
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+  event.target.classList.add("active");
+
+  if(tab === "html"){
+    preview.style.display = "block";
+    editor.style.display = "none";
+    preview.srcdoc = files.html;
+  } else {
+    preview.style.display = "none";
+    editor.style.display = "block";
+    editor.value = files[tab];
+  }
+}
+
+// RUN JS
+function runJS(){
+  try {
+    const fn = new Function("log", editor.value);
+    fn(log);
+  } catch(e){
+    log("Error: " + e.message);
+  }
+}
+
+// JSON CHECK
+function parseJSON(){
+  try {
+    JSON.parse(editor.value);
+    log("Valid JSON ✔");
+  } catch(e){
+    log("Invalid JSON: " + e.message);
+  }
+}
+
+// DOWNLOAD CURRENT FILE
+function downloadFile(){
+  const blob = new Blob([editor.value], {type:"text/plain"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = current + (current === "json" ? ".json" : current === "js" ? ".js" : current === "html" ? ".html" : ".txt");
+  a.click();
+}
+
+// INIT
+editor.value = files.js;
+</script>
+
+</body>
+</html>
