@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mobile Code Pad</title>
+
+<style>
+body {
+  margin: 0;
+  font-family: monospace;
+  background: #0f1117;
+  color: #e6e6e6;
+}
+
+/* TOP BAR */
+.top {
+  position: sticky;
+  top: 0;
+  background: #161a22;
+  display: flex;
+  gap: 6px;
+  padding: 10px;
+  border-bottom: 1px solid #2a2f3a;
+}
+
+button {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  border-radius: 8px;
+  background: #2b6cff;
+  color: white;
+  font-size: 14px;
+}
+
+button:active {
+  transform: scale(0.98);
+}
+
+/* EDITOR */
+textarea {
+  width: 100%;
+  height: 45vh;
+  border: none;
+  outline: none;
+  resize: none;
+  padding: 12px;
+  background: #0b0e14;
+  color: #d6d6d6;
+  font-size: 14px;
+}
+
+/* OUTPUT */
+.output {
+  height: 35vh;
+  overflow: auto;
+  padding: 10px;
+  background: #0b0e14;
+  border-top: 1px solid #2a2f3a;
+  white-space: pre-wrap;
+}
+</style>
+</head>
+
+<body>
+
+<div class="top">
+  <button onclick="setMode('js')">JS</button>
+  <button onclick="setMode('json')">JSON</button>
+  <button onclick="setMode('txt')">TXT</button>
+  <button onclick="run()">RUN</button>
+  <button onclick="clearOut()">CLEAR</button>
+</div>
+
+<textarea id="editor"></textarea>
+
+<div id="out" class="output"></div>
+
+<script>
+const editor = document.getElementById("editor");
+const out = document.getElementById("out");
+
+let mode = "js";
+
+const files = {
+  js: `log("Hello from mobile JS pad");`,
+  json: `{"name":"Mobile Pad","type":"simple"}`,
+  txt: `Write notes here...`
+};
+
+function log(msg){
+  out.textContent += msg + "\n";
+}
+
+function clearOut(){
+  out.textContent = "";
+}
+
+function setMode(m){
+  files[mode] = editor.value;
+  mode = m;
+  editor.value = files[m];
+  log("Switched to " + m.toUpperCase());
+}
+
+function run(){
+  if(mode === "js"){
+    try {
+      new Function("log", editor.value)(log);
+    } catch(e){
+      log("Error: " + e.message);
+    }
+  }
+
+  else if(mode === "json"){
+    try {
+      log(JSON.stringify(JSON.parse(editor.value), null, 2));
+    } catch(e){
+      log("Invalid JSON: " + e.message);
+    }
+  }
+
+  else {
+    log(editor.value);
+  }
+}
+
+// init
+editor.value = files.js;
+</script>
+
+</body>
+</html>
